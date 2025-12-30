@@ -83,7 +83,7 @@ button:hover {
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
 /* 🔑 PASTE YOUR FIREBASE CONFIG HERE */
 const firebaseConfig = {
@@ -114,7 +114,7 @@ async function type(text, speed=25){
     screen.textContent+="\n";
 }
 
-/* LOGIN FUNCTION */
+/* LOGIN */
 async function login(){
     play("click");
     const email = document.getElementById("email").value;
@@ -145,59 +145,53 @@ async function mainMenu(){
     await type(`MAIN CONTROL\nRANK: ${currentRank}\n`);
 
     menu.innerHTML = `
-      <button onclick="missions()">MISSIONS</button>
-      ${currentRank!=="Guest" ? `<button onclick="projects()">PROJECTS</button>` : ""}
+      <button onclick="loadSection('missions')">MISSIONS</button>
+      ${currentRank!=="Guest" ? `<button onclick="loadSection('projects')">PROJECTS</button>` : ""}
       ${currentRank==="Admin" ? `<button onclick="admin()">ADMIN</button>` : ""}
-      <button onclick="news()">NEWS</button>
+      <button onclick="loadSection('news')">NEWS</button>
     `;
 }
 
-/* SECTIONS */
-async function missions(){
+/* DYNAMIC FIRESTORE SECTION LOADER */
+async function loadSection(collectionName){
     play("click");
     clearUI();
-    await type("MISSIONS\n• Invisible Watch\nMore coming soon");
-    menu.innerHTML=`<button onclick="mainMenu()">RETURN</button>`;
+    await type(collectionName.toUpperCase() + "\n");
+
+    const snapshot = await getDocs(collection(db, collectionName));
+
+    if(snapshot.empty){
+        screen.textContent += "No items found.\n";
+    } else {
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const btn = document.createElement("button");
+            btn.textContent = data.title;
+            btn.onclick = async () => {
+                clearUI();
+                await type(data.title + "\n");
+                await type(data.description, 15);
+                menu.innerHTML = `<button onclick="loadSection('${collectionName}')">RETURN</button>`;
+            };
+            menu.appendChild(btn);
+        });
+    }
+
+    // Add return button to main menu
+    const returnBtn = document.createElement("button");
+    returnBtn.textContent = "RETURN";
+    returnBtn.onclick = mainMenu;
+    menu.appendChild(returnBtn);
 }
 
-async function projects(){
-    play("click");
-    clearUI();
-    await type("PROJECTS\n");
-    menu.innerHTML=`
-      <button onclick="arc9()">ARC-9 PHANTOM TEMPEST</button>
-      <button onclick="fd()">FLYING DOME</button>
-      <button onclick="mainMenu()">RETURN</button>`;
-}
-
-async function arc9(){
-    clearUI();
-    await type("ARC-9 PHANTOM TEMPEST\n",20);
-    await type("Elite ARC-V stealth aircraft for high-risk missions.",15);
-    menu.innerHTML=`<button onclick="projects()">RETURN</button>`;
-}
-
-async function fd(){
-    clearUI();
-    await type("FLYING DOME\n",20);
-    await type("Nationwide coordinated drone monitoring network.",15);
-    menu.innerHTML=`<button onclick="projects()">RETURN</button>`;
-}
-
-async function news(){
-    play("click");
-    clearUI();
-    await type("NEWS\nNew tech and hierarchy updates coming soon.");
-    menu.innerHTML=`<button onclick="mainMenu()">RETURN</button>`;
-}
-
+/* ADMIN PANEL */
 async function admin(){
     clearUI();
     await type("ADMIN PANEL\nUser management & system logs.");
     menu.innerHTML=`<button onclick="mainMenu()">RETURN</button>`;
 }
 
-/* UPDATE currentRank if user already logged in */
+/* TRACK LOGIN STATE */
 onAuthStateChanged(auth,user=>{
     if(user){
         getDoc(doc(db,"users",user.uid)).then(docSnap=>{
@@ -206,20 +200,17 @@ onAuthStateChanged(auth,user=>{
     }
 });
 
-/* ADD BUTTON EVENT LISTENER FOR LOGIN */
+/* BUTTON EVENT LISTENER */
 document.getElementById("accessBtn").addEventListener("click",login);
 
-/* EXPOSE FUNCTIONS GLOBALLY SO BUTTONS WORK */
+/* EXPOSE FUNCTIONS GLOBALLY */
 window.login = login;
 window.mainMenu = mainMenu;
-window.missions = missions;
-window.projects = projects;
-window.arc9 = arc9;
-window.fd = fd;
-window.news = news;
+window.loadSection = loadSection;
 window.admin = admin;
 </script>
 
 </body>
 </html>
+
 
