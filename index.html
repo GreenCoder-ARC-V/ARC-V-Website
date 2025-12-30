@@ -139,9 +139,6 @@ async function login(){
     }
 }
 
-/* EXPOSE login to global scope so button can see it */
-window.login = login;
-
 /* MAIN MENU */
 async function mainMenu(){
     clearUI();
@@ -209,9 +206,20 @@ onAuthStateChanged(auth,user=>{
     }
 });
 
-/* ADD BUTTON EVENT LISTENER (safest way) */
+/* ADD BUTTON EVENT LISTENER FOR LOGIN */
 document.getElementById("accessBtn").addEventListener("click",login);
+
+/* EXPOSE FUNCTIONS GLOBALLY SO BUTTONS WORK */
+window.login = login;
+window.mainMenu = mainMenu;
+window.missions = missions;
+window.projects = projects;
+window.arc9 = arc9;
+window.fd = fd;
+window.news = news;
+window.admin = admin;
 </script>
 
 </body>
 </html>
+
