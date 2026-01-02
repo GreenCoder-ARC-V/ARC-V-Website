@@ -2,58 +2,90 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ARC-V Control</title>
+<title>ARC-V Secure Terminal</title>
+
 <style>
+:root { --accent:#00ffcc; }
+
+* { box-sizing:border-box; }
+
 body {
+    margin:0;
+    height:100vh;
     background:black;
-    color:#00ffcc;
+    color:var(--accent);
     font-family:monospace;
     display:flex;
     justify-content:center;
     align-items:center;
-    height:100vh;
 }
-#container {
+
+.view {
+    display:none;
     text-align:center;
-    width:600px;
+    width:90%;
+    max-width:700px;
+    animation:fade .6s ease;
 }
-button, input {
+.view.active { display:block; }
+
+#screen {
+    white-space:pre-wrap;
+    min-height:220px;
+    margin-bottom:20px;
+}
+
+input, button {
     background:black;
-    color:#00ffcc;
-    border:1px solid #00ffcc;
+    color:var(--accent);
+    border:1px solid var(--accent);
     padding:10px;
-    margin:5px;
+    margin:6px 0;
+    width:100%;
     font-family:monospace;
 }
+
 button:hover {
-    background:#00ffcc;
+    background:var(--accent);
     color:black;
     cursor:pointer;
 }
-pre {
-    white-space:pre-wrap;
+
+@keyframes fade {
+    from { opacity:0; transform:translateY(10px); }
+    to { opacity:1; transform:translateY(0); }
 }
 </style>
 </head>
 
 <body>
-<div id="container">
-    <h2>ARC-V ACCESS TERMINAL</h2>
-    <div id="login">
-        <input id="email" placeholder="Email"><br>
-        <input id="password" type="password" placeholder="Password"><br>
-        <button onclick="login()">ACCESS</button>
-    </div>
-    <pre id="screen"></pre>
+
+<!-- SOUND EFFECTS -->
+<audio id="click" src="click.mp3"></audio>
+<audio id="success" src="success.mp3"></audio>
+<audio id="fail" src="fail.mp3"></audio>
+
+<!-- LOGIN -->
+<div class="view active" id="login">
+    <h2>ARC-V SECURE TERMINAL</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Access Code">
+    <button id="accessBtn">ACCESS</button>
+</div>
+
+<!-- TERMINAL -->
+<div class="view" id="terminal">
+    <div id="screen"></div>
     <div id="menu"></div>
 </div>
 
+<!-- FIREBASE -->
 <script type="module">
-/* ================= FIREBASE ================= */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
+/* 🔑 PASTE YOUR FIREBASE CONFIG HERE */
 const firebaseConfig = {
   apiKey: "AIzaSyBVMI-1qNaTxw2T-TiPGVW6-FCTJyMCytg",
   authDomain: "arcvwebbackend.firebaseapp.com",
@@ -64,90 +96,120 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* ================= GLOBALS ================= */
+/* UI HELPERS */
 const screen = document.getElementById("screen");
 const menu = document.getElementById("menu");
 let currentRank = "Guest";
 
-const rankOrder = ["Guest","Member","VOIS","Admin"];
-
-function hasAccess(userRank, requiredRank){
-    return rankOrder.indexOf(userRank) >= rankOrder.indexOf(requiredRank);
+function play(id){ document.getElementById(id).play(); }
+function show(id){
+    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
 }
+function clearUI(){ screen.textContent=""; menu.innerHTML=""; }
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-/* ================= EFFECTS ================= */
-function clearUI(){
-    screen.textContent = "";
-    menu.innerHTML = "";
-}
 async function type(text, speed=25){
-    for(let c of text){
-        screen.textContent += c;
-        await new Promise(r=>setTimeout(r,speed));
-    }
+    for (let c of text){ screen.textContent+=c; await sleep(speed); }
+    screen.textContent+="\n";
 }
 
-/* ================= LOGIN ================= */
-window.login = async function(){
-    clearUI();
-    try{
-        const user = await signInWithEmailAndPassword(
-            auth,
-            email.value,
-            password.value
-        );
+/* LOGIN */
+async function login(){
+    play("click");
+    const email = document.getElementById("email").value;
+    const pass = document.getElementById("password").value;
 
-        const snap = await getDoc(doc(db,"users",user.user.uid));
-        currentRank = snap.exists() ? snap.data().rank : "Member";
+    try {
+        const cred = await signInWithEmailAndPassword(auth,email,pass);
+        play("success");
 
-        document.getElementById("login").style.display="none";
-        await type("ACCESS GRANTED\n");
-        await type("Rank: "+currentRank+"\n\n");
+        const userDoc = await getDoc(doc(db,"users",cred.user.uid));
+        currentRank = userDoc.data().rank || "Guest";
+
+        show("terminal");
+        clearUI();
+        await type("ACCESS GRANTED",60);
+        await sleep(500);
         mainMenu();
-    }catch{
-        await type("ACCESS DENIED");
+
+    } catch {
+        play("fail");
+        alert("ACCESS DENIED");
     }
 }
 
-/* ================= MAIN MENU ================= */
-window.mainMenu = function(){
+/* MAIN MENU */
+async function mainMenu(){
     clearUI();
-    type("MAIN CONTROL\n\n");
+    await type(`MAIN CONTROL\nRANK: ${currentRank}\n`);
+
     menu.innerHTML = `
       <button onclick="loadSection('missions')">MISSIONS</button>
-      <button onclick="loadSection('projects')">PROJECTS</button>
+      ${currentRank!=="Guest" ? `<button onclick="loadSection('projects')">PROJECTS</button>` : ""}
+      ${currentRank==="Admin" ? `<button onclick="window.location.href='admin.html'">ADMIN</button>` : ""}
       <button onclick="loadSection('news')">NEWS</button>
     `;
 }
 
-/* ================= DYNAMIC LOADER ================= */
-window.loadSection = async function(section){
+/* DYNAMIC FIRESTORE SECTION LOADER */
+async function loadSection(collectionName){
+    play("click");
     clearUI();
-    await type(section.toUpperCase()+"\n\n");
+    await type(collectionName.toUpperCase() + "\n");
 
-    const snap = await getDocs(collection(db,section));
-    snap.forEach(d=>{
-        const data = d.data();
-        const btn = document.createElement("button");
-        btn.textContent = data.title;
-        btn.onclick = async ()=>{
-            clearUI();
-            if(!hasAccess(currentRank,data.requiredRank)){
-                await type("ACCESS DENIED\n");
-                await type("Required Rank: "+data.requiredRank);
-                menu.innerHTML=`<button onclick="loadSection('${section}')">RETURN</button>`;
-                return;
-            }
-            await type(data.title+"\n\n");
-            await type(data.description);
-            menu.innerHTML=`<button onclick="loadSection('${section}')">RETURN</button>`;
-        };
-        menu.appendChild(btn);
-    });
+    const snapshot = await getDocs(collection(db, collectionName));
 
-    menu.innerHTML += `<br><button onclick="mainMenu()">RETURN</button>`;
+    if(snapshot.empty){
+        screen.textContent += "No items found.\n";
+    } else {
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const btn = document.createElement("button");
+            btn.textContent = data.title;
+            btn.onclick = async () => {
+                clearUI();
+                await type(data.title + "\n");
+                await type(data.description, 15);
+                menu.innerHTML = `<button onclick="loadSection('${collectionName}')">RETURN</button>`;
+            };
+            menu.appendChild(btn);
+        });
+    }
+
+    // Add return button to main menu
+    const returnBtn = document.createElement("button");
+    returnBtn.textContent = "RETURN";
+    returnBtn.onclick = mainMenu;
+    menu.appendChild(returnBtn);
 }
+
+/* ADMIN PANEL */
+async function admin(){
+    clearUI();
+    await type("ADMIN PANEL\nUser management & system logs.");
+    menu.innerHTML=`<button onclick="mainMenu()">RETURN</button>`;
+}
+
+/* TRACK LOGIN STATE */
+onAuthStateChanged(auth,user=>{
+    if(user){
+        getDoc(doc(db,"users",user.uid)).then(docSnap=>{
+            if(docSnap.exists()) currentRank = docSnap.data().rank || "Guest";
+        });
+    }
+});
+
+/* BUTTON EVENT LISTENER */
+document.getElementById("accessBtn").addEventListener("click",login);
+
+/* EXPOSE FUNCTIONS GLOBALLY */
+window.login = login;
+window.mainMenu = mainMenu;
+window.loadSection = loadSection;
+window.admin = admin;
 </script>
+
 </body>
 </html>
 
