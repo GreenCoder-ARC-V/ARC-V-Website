@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ARC-V Admin</title>
+
+<style>
+body{
+    margin:0;
+    height:100vh;
+    background:black;
+    color:#00ffcc;
+    font-family:monospace;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+}
+input, textarea, button, select{
+    width:100%;
+    margin:6px 0;
+    padding:10px;
+    background:black;
+    color:#00ffcc;
+    border:1px solid #00ffcc;
+    font-family:monospace;
+}
+button:hover{
+    background:#00ffcc;
+    color:black;
+    cursor:pointer;
+}
+#panel{ display:none; width:90%; max-width:600px; }
+#login{ width:90%; max-width:400px; }
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login">
+    <h2>ADMIN LOGIN</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button id="loginBtn">ACCESS</button>
+    <p id="loginStatus"></p>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="panel">
+    <h2>ARC-V ADMIN PANEL</h2>
+
+    <select id="type">
+        <option value="missions">Mission</option>
+        <option value="projects">Project</option>
+        <option value="news">News</option>
+    </select>
+
+    <input id="title" placeholder="Title">
+    <textarea id="description" placeholder="Description"></textarea>
+
+    <button id="addBtn">ADD ITEM</button>
+    <p id="status"></p>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, addDoc, collection } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+/* 🔑 SAME FIREBASE CONFIG */
+const firebaseConfig = {
+  apiKey: "AIzaSyBVMI-1qNaTxw2T-TiPGVW6-FCTJyMCytg",
+  authDomain: "arcvwebbackend.firebaseapp.com",
+  projectId: "arcvwebbackend"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* LOGIN */
+loginBtn.onclick = async ()=>{
+    loginStatus.textContent = "CHECKING...";
+    try{
+        const cred = await signInWithEmailAndPassword(
+            auth,
+            email.value,
+            password.value
+        );
+
+        const snap = await getDoc(doc(db,"users",cred.user.uid));
+        if(!snap.exists() || snap.data().rank !== "Admin"){
+            loginStatus.textContent = "ACCESS DENIED";
+            return;
+        }
+
+        login.style.display = "none";
+        panel.style.display = "block";
+    }catch{
+        loginStatus.textContent = "LOGIN FAILED";
+    }
+};
+
+/* ADD ITEM */
+addBtn.onclick = async ()=>{
+    if(!title.value || !description.value){
+        status.textContent = "Missing fields";
+        return;
+    }
+
+    await addDoc(collection(db,type.value),{
+        title: title.value,
+        description: description.value,
+        created: Date.now()
+    });
+
+    status.textContent = "ITEM ADDED ✔";
+    title.value="";
+    description.value="";
+};
+</script>
+
+</body>
+</html>
